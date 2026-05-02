@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Vehicle {
+  id           String    @id @default(cuid())
+  year         Int
+  make         String
+  model        String
+  trim         String?
+  color        String?
+  vin          String?
+  purchaseDate DateTime?
+  mileage      Int       @default(0)
+  photoUrl     String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  schedules      MaintenanceSchedule[]
+  serviceRecords ServiceRecord[]
+  mileageLogs    MileageLog[]
+  documents      Document[]
+}
+
+model MaintenanceSchedule {
+  id              String    @id @default(cuid())
+  vehicleId       String
+  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  taskName        String
+  intervalMonths  Int?
+  intervalMiles   Int?
+  lastDoneDate    DateTime?
+  lastDoneMileage Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ServiceRecord {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  taskName    String
+  date        DateTime
+  mileage     Int?
+  cost        Float?
+  performedBy String   @default("DIY")
+  shopName    String?
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model MileageLog {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date      DateTime
+  mileage   Int
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type      String
+  name      String
+  fileUrl   String?
+  notes     String?
+  createdAt DateTime @default(now())
+}
