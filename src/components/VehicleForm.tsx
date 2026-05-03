@@ -42,10 +42,33 @@ export default function VehicleForm({ vehicle }: Props) {
     setPhotoPreview(URL.createObjectURL(file));
   }
 
+  function resizeImage(file: File, maxPx = 1400): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          if (width >= height) { height = Math.round(height * maxPx / width); width = maxPx; }
+          else { width = Math.round(width * maxPx / height); height = maxPx; }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("resize failed")), "image/jpeg", 0.85);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
   async function uploadPhoto(vehicleId: string): Promise<string | null> {
     if (!photoFile) return vehicle?.photoUrl || null;
+    const resized = await resizeImage(photoFile);
     const fd = new FormData();
-    fd.append("file", photoFile);
+    fd.append("file", new File([resized], "photo.jpg", { type: "image/jpeg" }));
     fd.append("vehicleId", vehicleId);
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     if (!res.ok) return null;
