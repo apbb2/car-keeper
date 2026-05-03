@@ -74,11 +74,13 @@ export default function VehicleForm({ vehicle }: Props) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...form, photoUrl: uploaded }),
             });
+            toast.success("Vehicle updated");
           } else {
             toast.error("Photo upload failed — vehicle saved without photo");
           }
+        } else {
+          toast.success("Vehicle updated");
         }
-        toast.success("Vehicle updated");
         router.push(`/vehicles/${vehicle.id}`);
         router.refresh();
       } else {
@@ -97,11 +99,13 @@ export default function VehicleForm({ vehicle }: Props) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ ...form, photoUrl: uploaded }),
             });
+            toast.success("Vehicle added to garage");
           } else {
             toast.error("Photo upload failed — vehicle saved without photo");
           }
+        } else {
+          toast.success("Vehicle added to garage");
         }
-        toast.success("Vehicle added to garage");
         router.push(`/vehicles/${created.id}`);
         router.refresh();
       }
