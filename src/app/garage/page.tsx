@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { Car, PlusCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/supabase-server";
 import { computeScheduleStatus, vehicleOverallStatus } from "@/lib/maintenance";
 import StatusBadge from "@/components/StatusBadge";
 import { formatMileage } from "@/lib/utils";
 
-async function getVehicles() {
+async function getVehicles(userId: string) {
   return prisma.vehicle.findMany({
+    where: { userId },
     include: { schedules: true },
     orderBy: [{ year: "asc" }, { make: "asc" }],
   });
 }
 
 export default async function GaragePage() {
-  const vehicles = await getVehicles();
+  const user = await getUser();
+  if (!user) return null;
+  const vehicles = await getVehicles(user.id);
 
   return (
     <>

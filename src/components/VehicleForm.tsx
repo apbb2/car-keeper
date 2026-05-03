@@ -130,17 +130,17 @@ export default function VehicleForm({ vehicle }: Props) {
 
               {/* Photo */}
               <div className="mb-6">
-                <label className="field-label">Photo</label>
-                <div
+                <p className="field-label">Photo</p>
+                <label
+                  htmlFor="vehicle-photo"
                   className="w-full h-48 rounded-xl border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center cursor-pointer hover:border-zinc-400 transition-colors overflow-hidden relative"
-                  onClick={() => fileRef.current?.click()}
                 >
                   {photoPreview ? (
                     <img src={photoPreview} alt="Vehicle" className="w-full h-full object-cover" />
                   ) : (
                     <>
                       <Car className="w-10 h-10 text-zinc-300 mb-2" />
-                      <p className="text-sm text-zinc-400">Click to upload photo</p>
+                      <p className="text-sm text-zinc-400">Tap to upload photo</p>
                     </>
                   )}
                   {photoPreview && (
@@ -148,8 +148,11 @@ export default function VehicleForm({ vehicle }: Props) {
                       <Upload className="w-6 h-6 text-white" />
                     </div>
                   )}
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                </label>
+                <input id="vehicle-photo" ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                {photoPreview && (
+                  <p className="text-xs text-zinc-400 mt-1.5 text-center">Tap photo to change</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

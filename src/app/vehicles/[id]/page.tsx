@@ -1,11 +1,15 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/supabase-server";
 import VehicleDetail from "./VehicleDetail";
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const user = await getUser();
+  if (!user) return null;
+
   const { id } = await params;
-  const vehicle = await prisma.vehicle.findUnique({
-    where: { id },
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id, userId: user.id },
     include: {
       schedules: { orderBy: { taskName: "asc" } },
       serviceRecords: { orderBy: { date: "desc" } },
