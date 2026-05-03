@@ -1,29 +1,63 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { AlertCircle, Clock, Car, DollarSign, ChevronRight } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { formatCurrency } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/supabase-server";
+import { computeScheduleStatus } from "@/lib/maintenance";
 import type { TaskStatus } from "@/lib/maintenance";
 
-async function getDashboard() {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const res = await fetch(`${base}/api/dashboard`, { cache: "no-store" });
-  if (!res.ok) return null;
-  return res.json();
+async function getDashboard(userId: string) {
+  const vehicles = await prisma.vehicle.findMany({
+    where: { userId },
+    include: { schedules: true, serviceRecords: { orderBy: { date: "desc" }, take: 10 } },
+    orderBy: { year: "asc" },
+  });
+
+  const now = new Date();
+  const in90Days = addDays(now, 90);
+
+  const attention: { vehicleId: string; vehicleName: string; taskName: string; status: TaskStatus; nextDueDate: Date | null }[] = [];
+  const upcoming: typeof attention = [];
+  let totalSpentThisYear = 0;
+  const recentActivity: { date: Date; vehicleName: string; taskName: string; cost: number | null; performedBy: string }[] = [];
+
+  for (const vehicle of vehicles) {
+    const name = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+    for (const schedule of vehicle.schedules) {
+      const s = computeScheduleStatus(schedule, vehicle.mileage);
+      if (s.status === "overdue" || s.status === "never-done" || s.status === "due-soon") {
+        attention.push({ vehicleId: vehicle.id, vehicleName: name, taskName: schedule.taskName, status: s.status, nextDueDate: s.nextDueDate });
+      } else if (s.nextDueDate && s.nextDueDate <= in90Days) {
+        upcoming.push({ vehicleId: vehicle.id, vehicleName: name, taskName: schedule.taskName, status: s.status, nextDueDate: s.nextDueDate });
+      }
+    }
+    for (const record of vehicle.serviceRecords) {
+      if (new Date(record.date).getFullYear() === now.getFullYear() && record.cost) totalSpentThisYear += record.cost;
+      recentActivity.push({ date: record.date, vehicleName: name, taskName: record.taskName, cost: record.cost, performedBy: record.performedBy });
+    }
+  }
+
+  recentActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return {
+    totalVehicles: vehicles.length,
+    attention: attention.slice(0, 10),
+    upcoming: upcoming.sort((a, b) => (a.nextDueDate?.getTime() ?? 0) - (b.nextDueDate?.getTime() ?? 0)).slice(0, 10),
+    totalSpentThisYear,
+    recentActivity: recentActivity.slice(0, 10),
+    overdueCount: attention.filter((a) => a.status === "overdue" || a.status === "never-done").length,
+    dueSoonCount: attention.filter((a) => a.status === "due-soon").length,
+  };
 }
 
 export default async function DashboardPage() {
-  const data = await getDashboard();
-  const today = new Date();
+  const user = await getUser();
+  if (!user) return null;
 
-  if (!data) {
-    return (
-      <div className="page-content flex flex-col items-center justify-center min-h-96 text-center">
-        <h2 className="text-xl font-semibold text-zinc-700 mb-2">Connect your database to get started</h2>
-        <p className="text-sm text-zinc-400">Add your Supabase credentials to .env, then run prisma migrate dev.</p>
-      </div>
-    );
-  }
+  const data = await getDashboard(user.id);
+  const today = new Date();
 
   return (
     <>
@@ -44,7 +78,7 @@ export default async function DashboardPage() {
           <section>
             <h2 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-3">Needs Attention</h2>
             <div className="card divide-y divide-zinc-50">
-              {data.attention.map((item: { vehicleId: string; vehicleName: string; taskName: string; status: TaskStatus; nextDueDate: string | null }, i: number) => (
+              {data.attention.map((item, i) => (
                 <Link key={i} href={`/vehicles/${item.vehicleId}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-zinc-50 transition-colors group">
                   <div className="flex items-center gap-4">
                     <StatusBadge status={item.status} />
@@ -67,7 +101,7 @@ export default async function DashboardPage() {
           <section>
             <h2 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-3">Upcoming — Next 90 Days</h2>
             <div className="card divide-y divide-zinc-50">
-              {data.upcoming.map((item: { vehicleId: string; vehicleName: string; taskName: string; status: TaskStatus; nextDueDate: string | null }, i: number) => (
+              {data.upcoming.map((item, i) => (
                 <Link key={i} href={`/vehicles/${item.vehicleId}`} className="flex items-center justify-between px-5 py-3.5 hover:bg-zinc-50 transition-colors group">
                   <div>
                     <p className="text-sm font-semibold text-zinc-800">{item.vehicleName}</p>
@@ -87,7 +121,7 @@ export default async function DashboardPage() {
           <section>
             <h2 className="text-sm font-bold text-zinc-500 uppercase tracking-wide mb-3">Recent Activity</h2>
             <div className="card divide-y divide-zinc-50">
-              {data.recentActivity.map((item: { date: string; vehicleName: string; taskName: string; cost: number | null; performedBy: string }, i: number) => (
+              {data.recentActivity.map((item, i) => (
                 <div key={i} className="flex items-center justify-between px-5 py-3.5">
                   <div>
                     <p className="text-sm font-semibold text-zinc-800">{item.vehicleName}</p>
