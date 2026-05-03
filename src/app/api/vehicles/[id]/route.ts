@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/supabase-server";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
-  const vehicle = await prisma.vehicle.findUnique({
-    where: { id },
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id, userId: user.id },
     include: {
       schedules: { orderBy: { taskName: "asc" } },
       serviceRecords: { orderBy: { date: "desc" } },
@@ -17,12 +21,15 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
   const body = await req.json();
   const { year, make, model, trim, color, vin, purchaseDate, mileage, photoUrl, notes } = body;
 
-  const vehicle = await prisma.vehicle.update({
-    where: { id },
+  const vehicle = await prisma.vehicle.updateMany({
+    where: { id, userId: user.id },
     data: {
       year: Number(year),
       make,
@@ -40,7 +47,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { id } = await params;
-  await prisma.vehicle.delete({ where: { id } });
+  await prisma.vehicle.deleteMany({ where: { id, userId: user.id } });
   return NextResponse.json({ ok: true });
 }

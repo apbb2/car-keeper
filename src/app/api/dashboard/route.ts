@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeScheduleStatus } from "@/lib/maintenance";
+import { getUser } from "@/lib/supabase-server";
 import { addDays } from "date-fns";
 
 export async function GET() {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const vehicles = await prisma.vehicle.findMany({
+    where: { userId: user.id },
     include: { schedules: true, serviceRecords: { orderBy: { date: "desc" }, take: 10 } },
     orderBy: { year: "asc" },
   });

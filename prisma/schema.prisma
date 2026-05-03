@@ -9,6 +9,7 @@ datasource db {
 
 model Vehicle {
   id           String    @id @default(cuid())
+  userId       String
   year         Int
   make         String
   model        String

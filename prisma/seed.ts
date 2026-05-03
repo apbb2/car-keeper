@@ -7,6 +7,8 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  const userId = process.argv[2];
+  if (!userId) { console.error("Usage: npx tsx prisma/seed.ts <user-id>"); process.exit(1); }
   console.log("Seeding sample vehicles...");
 
   const vehicles = [
@@ -18,7 +20,7 @@ async function main() {
 
   for (const v of vehicles) {
     const vehicle = await prisma.vehicle.create({
-      data: { ...v, schedules: { create: DEFAULT_SCHEDULES } },
+      data: { ...v, userId, schedules: { create: DEFAULT_SCHEDULES } },
     });
 
     // Add a few service records

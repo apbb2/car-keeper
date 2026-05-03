@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, Car, PlusCircle, Wrench } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, Car, PlusCircle, Wrench, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase-browser";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/garage", label: "My Garage", icon: Car },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ userEmail }: { userEmail: string }) {
   const path = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="w-56 shrink-0 flex flex-col bg-zinc-900 text-white h-full">
@@ -40,7 +49,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="px-3 pb-5">
+      <div className="px-3 pb-3 space-y-1">
         <Link
           href="/vehicles/new"
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-amber-400 hover:bg-zinc-800 transition-colors"
@@ -48,6 +57,19 @@ export default function Sidebar() {
           <PlusCircle className="w-4 h-4" />
           Add Vehicle
         </Link>
+      </div>
+
+      <div className="px-3 pb-5 border-t border-zinc-700 pt-3">
+        <div className="px-3 py-2 mb-1">
+          <p className="text-xs text-zinc-500 truncate">{userEmail}</p>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_SCHEDULES } from "@/lib/maintenance";
+import { getUser } from "@/lib/supabase-server";
 
 export async function GET() {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const vehicles = await prisma.vehicle.findMany({
+    where: { userId: user.id },
     include: { schedules: true },
     orderBy: { year: "asc" },
   });
@@ -11,11 +16,15 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const body = await req.json();
   const { year, make, model, trim, color, vin, purchaseDate, mileage, photoUrl, notes, applyDefaultSchedule } = body;
 
   const vehicle = await prisma.vehicle.create({
     data: {
+      userId: user.id,
       year: Number(year),
       make,
       model,
@@ -26,9 +35,7 @@ export async function POST(req: Request) {
       mileage: Number(mileage) || 0,
       photoUrl: photoUrl || null,
       notes: notes || null,
-      schedules: applyDefaultSchedule !== false
-        ? { create: DEFAULT_SCHEDULES }
-        : undefined,
+      schedules: applyDefaultSchedule !== false ? { create: DEFAULT_SCHEDULES } : undefined,
     },
     include: { schedules: true },
   });
