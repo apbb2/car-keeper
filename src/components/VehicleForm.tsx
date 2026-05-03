@@ -60,7 +60,6 @@ export default function VehicleForm({ vehicle }: Props) {
       let photoUrl = vehicle?.photoUrl || null;
 
       if (isEdit) {
-        // For edit: first save, then upload photo
         const res = await fetch(`/api/vehicles/${vehicle.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -68,19 +67,21 @@ export default function VehicleForm({ vehicle }: Props) {
         });
         if (!res.ok) throw new Error("Failed to update");
         if (photoFile) {
-          photoUrl = await uploadPhoto(vehicle.id);
-          if (photoUrl) {
+          const uploaded = await uploadPhoto(vehicle.id);
+          if (uploaded) {
             await fetch(`/api/vehicles/${vehicle.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...form, photoUrl }),
+              body: JSON.stringify({ ...form, photoUrl: uploaded }),
             });
+          } else {
+            toast.error("Photo upload failed — vehicle saved without photo");
           }
         }
         toast.success("Vehicle updated");
         router.push(`/vehicles/${vehicle.id}`);
+        router.refresh();
       } else {
-        // Create first to get ID, then upload photo
         const res = await fetch("/api/vehicles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -89,17 +90,20 @@ export default function VehicleForm({ vehicle }: Props) {
         if (!res.ok) throw new Error("Failed to create");
         const created = await res.json();
         if (photoFile) {
-          photoUrl = await uploadPhoto(created.id);
-          if (photoUrl) {
+          const uploaded = await uploadPhoto(created.id);
+          if (uploaded) {
             await fetch(`/api/vehicles/${created.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...form, photoUrl }),
+              body: JSON.stringify({ ...form, photoUrl: uploaded }),
             });
+          } else {
+            toast.error("Photo upload failed — vehicle saved without photo");
           }
         }
         toast.success("Vehicle added to garage");
         router.push(`/vehicles/${created.id}`);
+        router.refresh();
       }
     } catch {
       toast.error("Something went wrong");
