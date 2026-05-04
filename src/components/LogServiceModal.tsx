@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import Modal from "./Modal";
 import { DEFAULT_SCHEDULES } from "@/lib/maintenance";
 import { format } from "date-fns";
+import type { ServiceRecord } from "@/generated/prisma/client";
 
 interface Props {
   vehicleId: string;
@@ -12,21 +13,25 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
   prefillTask?: string;
+  record?: ServiceRecord;
 }
 
 const TASK_OPTIONS = DEFAULT_SCHEDULES.map((s) => s.taskName);
 
-export default function LogServiceModal({ vehicleId, vehicleName, onClose, onSaved, prefillTask }: Props) {
+export default function LogServiceModal({ vehicleId, vehicleName, onClose, onSaved, prefillTask, record }: Props) {
+  const isEdit = !!record;
+  const taskIsStandard = record ? TASK_OPTIONS.includes(record.taskName) : true;
+
   const [form, setForm] = useState({
-    taskName: prefillTask || TASK_OPTIONS[0],
-    customTask: "",
-    useCustom: false,
-    date: format(new Date(), "yyyy-MM-dd"),
-    mileage: "",
-    cost: "",
-    performedBy: "DIY",
-    shopName: "",
-    notes: "",
+    taskName: record?.taskName || prefillTask || TASK_OPTIONS[0],
+    customTask: (!taskIsStandard && record?.taskName) || "",
+    useCustom: !taskIsStandard,
+    date: record ? format(new Date(record.date), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+    mileage: record?.mileage?.toString() || "",
+    cost: record?.cost?.toString() || "",
+    performedBy: record?.performedBy || "DIY",
+    shopName: record?.shopName || "",
+    notes: record?.notes || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -36,14 +41,17 @@ export default function LogServiceModal({ vehicleId, vehicleName, onClose, onSav
     e.preventDefault();
     setSaving(true);
     const taskName = form.useCustom ? form.customTask : form.taskName;
-    const res = await fetch(`/api/vehicles/${vehicleId}/service-records`, {
-      method: "POST",
+    const url = isEdit
+      ? `/api/vehicles/${vehicleId}/service-records/${record.id}`
+      : `/api/vehicles/${vehicleId}/service-records`;
+    const res = await fetch(url, {
+      method: isEdit ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, taskName }),
     });
     setSaving(false);
     if (res.ok) {
-      toast.success("Service record saved");
+      toast.success(isEdit ? "Record updated" : "Service record saved");
       onSaved();
       onClose();
     } else {
@@ -52,7 +60,7 @@ export default function LogServiceModal({ vehicleId, vehicleName, onClose, onSav
   }
 
   return (
-    <Modal title={`Log Service — ${vehicleName}`} onClose={onClose}>
+    <Modal title={isEdit ? `Edit Record — ${vehicleName}` : `Log Service — ${vehicleName}`} onClose={onClose}>
       <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
         <div>
           <label className="field-label">Task Type</label>
@@ -108,7 +116,7 @@ export default function LogServiceModal({ vehicleId, vehicleName, onClose, onSav
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-          <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : "Save Record"}</button>
+          <button type="submit" disabled={saving} className="btn-primary">{saving ? "Saving…" : isEdit ? "Update Record" : "Save Record"}</button>
         </div>
       </form>
     </Modal>

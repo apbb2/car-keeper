@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Car, ChevronLeft, Edit, Gauge, PlusCircle, Trash2, FileText, Upload } from "lucide-react";
+import { Car, ChevronLeft, Edit, Gauge, PlusCircle, Trash2, FileText, Upload, Check, X as XIcon } from "lucide-react";
 import { toast } from "sonner";
 import StatusBadge from "@/components/StatusBadge";
 import LogServiceModal from "@/components/LogServiceModal";
@@ -28,8 +28,15 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
   const [showService, setShowService] = useState(false);
   const [showMileage, setShowMileage] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | undefined>();
+  const [editRecord, setEditRecord] = useState<ServiceRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
+
+  // Schedule editing state
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [editSched, setEditSched] = useState({ taskName: "", intervalMonths: "", intervalMiles: "" });
+  const [addingSchedule, setAddingSchedule] = useState(false);
+  const [newSched, setNewSched] = useState({ taskName: "", intervalMonths: "", intervalMiles: "" });
 
   const name = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
 
@@ -70,6 +77,39 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
     });
     if (res.ok) { toast.success("Document added"); refresh(); (e.target as HTMLFormElement).reset(); }
     else toast.error("Failed to add document");
+  }
+
+  function startEditSchedule(s: MaintenanceSchedule) {
+    setEditingScheduleId(s.id);
+    setEditSched({ taskName: s.taskName, intervalMonths: s.intervalMonths?.toString() || "", intervalMiles: s.intervalMiles?.toString() || "" });
+  }
+
+  async function saveSchedule(scheduleId: string) {
+    const res = await fetch(`/api/vehicles/${vehicle.id}/schedules/${scheduleId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editSched),
+    });
+    if (res.ok) { toast.success("Schedule updated"); setEditingScheduleId(null); refresh(); }
+    else toast.error("Failed to update");
+  }
+
+  async function deleteSchedule(scheduleId: string) {
+    if (!confirm("Remove this maintenance task?")) return;
+    const res = await fetch(`/api/vehicles/${vehicle.id}/schedules/${scheduleId}`, { method: "DELETE" });
+    if (res.ok) { toast.success("Task removed"); refresh(); }
+    else toast.error("Failed to remove");
+  }
+
+  async function addSchedule() {
+    if (!newSched.taskName.trim()) return;
+    const res = await fetch(`/api/vehicles/${vehicle.id}/schedules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSched),
+    });
+    if (res.ok) { toast.success("Task added"); setAddingSchedule(false); setNewSched({ taskName: "", intervalMonths: "", intervalMiles: "" }); refresh(); }
+    else toast.error("Failed to add task");
   }
 
   const schedulesWithStatus = vehicle.schedules.map((s) => computeScheduleStatus(s, vehicle.mileage));
@@ -157,6 +197,9 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
           <div className="space-y-3">
             <div className="flex justify-between items-center mb-4">
               <p className="text-sm text-zinc-500">{schedulesWithStatus.length} tasks tracked</p>
+              <button onClick={() => setAddingSchedule(true)} className="btn-primary text-xs">
+                <PlusCircle className="w-3.5 h-3.5" /> Add Task
+              </button>
             </div>
             <div className="card overflow-hidden">
               <table className="w-full text-sm">
@@ -173,33 +216,75 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
                 <tbody className="divide-y divide-zinc-50">
                   {schedulesWithStatus.map((s) => (
                     <tr key={s.id} className="hover:bg-zinc-50/50">
-                      <td className="px-5 py-3.5 font-medium text-zinc-900">{s.taskName}</td>
-                      <td className="px-5 py-3.5 text-zinc-500 text-xs">
-                        {s.intervalMonths && `${s.intervalMonths} mo`}
-                        {s.intervalMonths && s.intervalMiles && " / "}
-                        {s.intervalMiles && `${s.intervalMiles.toLocaleString()} mi`}
-                      </td>
-                      <td className="px-5 py-3.5 text-zinc-500 text-xs">
-                        {s.lastDoneDate ? format(new Date(s.lastDoneDate), "MMM yyyy") : "—"}
-                        {s.lastDoneMileage && <span className="block text-zinc-400">{s.lastDoneMileage.toLocaleString()} mi</span>}
-                      </td>
-                      <td className="px-5 py-3.5 text-zinc-500 text-xs">
-                        {s.nextDueDate ? format(new Date(s.nextDueDate), "MMM yyyy") : "—"}
-                        {s.nextDueMileage && <span className="block text-zinc-400">{s.nextDueMileage.toLocaleString()} mi</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={s.status} />
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <button
-                          onClick={() => { setPrefillTask(s.taskName); setShowService(true); }}
-                          className="text-xs text-amber-600 hover:text-amber-800 font-medium"
-                        >
-                          Log
-                        </button>
-                      </td>
+                      {editingScheduleId === s.id ? (
+                        <>
+                          <td className="px-3 py-2">
+                            <input className="field text-xs py-1" value={editSched.taskName} onChange={(e) => setEditSched((f) => ({ ...f, taskName: e.target.value }))} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <input className="field text-xs py-1 w-20" placeholder="mo" type="number" value={editSched.intervalMonths} onChange={(e) => setEditSched((f) => ({ ...f, intervalMonths: e.target.value }))} />
+                              <input className="field text-xs py-1 w-24" placeholder="mi" type="number" value={editSched.intervalMiles} onChange={(e) => setEditSched((f) => ({ ...f, intervalMiles: e.target.value }))} />
+                            </div>
+                          </td>
+                          <td colSpan={2} />
+                          <td />
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => saveSchedule(s.id)} className="text-green-600 hover:text-green-800"><Check className="w-4 h-4" /></button>
+                              <button onClick={() => setEditingScheduleId(null)} className="text-zinc-400 hover:text-zinc-600"><XIcon className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-5 py-3.5 font-medium text-zinc-900">{s.taskName}</td>
+                          <td className="px-5 py-3.5 text-zinc-500 text-xs">
+                            {s.intervalMonths && `${s.intervalMonths} mo`}
+                            {s.intervalMonths && s.intervalMiles && " / "}
+                            {s.intervalMiles && `${s.intervalMiles.toLocaleString()} mi`}
+                          </td>
+                          <td className="px-5 py-3.5 text-zinc-500 text-xs">
+                            {s.lastDoneDate ? format(new Date(s.lastDoneDate), "MMM yyyy") : "—"}
+                            {s.lastDoneMileage && <span className="block text-zinc-400">{s.lastDoneMileage.toLocaleString()} mi</span>}
+                          </td>
+                          <td className="px-5 py-3.5 text-zinc-500 text-xs">
+                            {s.nextDueDate ? format(new Date(s.nextDueDate), "MMM yyyy") : "—"}
+                            {s.nextDueMileage && <span className="block text-zinc-400">{s.nextDueMileage.toLocaleString()} mi</span>}
+                          </td>
+                          <td className="px-5 py-3.5"><StatusBadge status={s.status} /></td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => { setPrefillTask(s.taskName); setShowService(true); }} className="text-xs text-amber-600 hover:text-amber-800 font-medium">Log</button>
+                              <button onClick={() => startEditSchedule(s)} className="text-zinc-300 hover:text-zinc-600 transition-colors"><Edit className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => deleteSchedule(s.id)} className="text-zinc-300 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </div>
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
+                  {addingSchedule && (
+                    <tr className="bg-amber-50/50">
+                      <td className="px-3 py-2">
+                        <input className="field text-xs py-1" placeholder="Task name" value={newSched.taskName} onChange={(e) => setNewSched((f) => ({ ...f, taskName: e.target.value }))} autoFocus />
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <input className="field text-xs py-1 w-20" placeholder="mo" type="number" value={newSched.intervalMonths} onChange={(e) => setNewSched((f) => ({ ...f, intervalMonths: e.target.value }))} />
+                          <input className="field text-xs py-1 w-24" placeholder="mi" type="number" value={newSched.intervalMiles} onChange={(e) => setNewSched((f) => ({ ...f, intervalMiles: e.target.value }))} />
+                        </div>
+                      </td>
+                      <td colSpan={2} />
+                      <td />
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <button onClick={addSchedule} className="text-green-600 hover:text-green-800"><Check className="w-4 h-4" /></button>
+                          <button onClick={() => setAddingSchedule(false)} className="text-zinc-400 hover:text-zinc-600"><XIcon className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -243,9 +328,14 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
                         </td>
                         <td className="px-5 py-3.5 text-zinc-400 text-xs max-w-xs truncate">{r.notes || "—"}</td>
                         <td className="px-5 py-3.5">
-                          <button onClick={() => deleteRecord(r.id)} className="text-zinc-300 hover:text-red-500 transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setEditRecord(r)} className="text-zinc-300 hover:text-zinc-600 transition-colors">
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => deleteRecord(r.id)} className="text-zinc-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -368,6 +458,15 @@ export default function VehicleDetail({ vehicle: initial }: { vehicle: FullVehic
           vehicleName={name}
           prefillTask={prefillTask}
           onClose={() => { setShowService(false); setPrefillTask(undefined); }}
+          onSaved={refresh}
+        />
+      )}
+      {editRecord && (
+        <LogServiceModal
+          vehicleId={vehicle.id}
+          vehicleName={name}
+          record={editRecord}
+          onClose={() => setEditRecord(null)}
           onSaved={refresh}
         />
       )}
